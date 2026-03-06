@@ -70,8 +70,7 @@ public class MainActivity extends AppCompatActivity {
         // Observe USB device JSON changes
         usbViewModel.getUsbDeviceJson().observe(this, this::onUsbDevicesChanged);
 
-        // Start monitoring USB devices
-        usbViewModel.startMonitoring(this);
+
     }
 
     /**
@@ -129,10 +128,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // Stop monitoring and clean up
-        if (usbViewModel != null) {
-            usbViewModel.stopMonitoring();
-        }
         // Clear the bridge callback to prevent memory leaks
         if (usbBridge != null) {
             usbBridge.clearCallback();
