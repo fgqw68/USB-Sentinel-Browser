@@ -25,6 +25,7 @@ myweb.usb.registerForUsbConnectionNotification(function(usbData) {
     const devices = JSON.parse(usbData);
     console.log("Connected USB Devices:", devices);
 });
+```
 
 **Setup for Admins (EMM/MDM)**
 To configure the start page, use the following managed configuration attribute:
@@ -47,5 +48,6 @@ Handling Android USB Host Mode broadcast receivers.
 **License**
 This project is open-source and available under the MIT License.
 
-Developed by
+
+**Developed by**
 Sabir VT
