@@ -1,6 +1,9 @@
 package com.example.usbsentinel;
 
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.RestrictionsManager;
 import android.os.Bundle;
 import android.webkit.WebSettings;
@@ -21,6 +24,7 @@ public class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
     private UsbViewModel usbViewModel;
     private UsbBridge usbBridge;
+    private BroadcastReceiver restrictionsChangedReceiver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -31,6 +35,11 @@ public class MainActivity extends AppCompatActivity {
         setupWebView();
         setupUsbBridge();
         setupViewModel();
+        setupRestrictionsReceiver();
+
+        // Sync restrictions before loading page (handles case where profile pushed before launch)
+        usbViewModel.syncRestrictions();
+
         loadPage();
     }
 
@@ -74,6 +83,24 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
+     * Sets up the BroadcastReceiver for restriction changes.
+     * This handles the case where admin pushes profile while app is already running.
+     */
+    private void setupRestrictionsReceiver() {
+        restrictionsChangedReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (Intent.ACTION_APPLICATION_RESTRICTIONS_CHANGED.equals(intent.getAction())) {
+                    // Re-sync restrictions when admin pushes profile while app is running
+                    usbViewModel.syncRestrictions();
+                    // Reload page with new configuration
+                    loadPage();
+                }
+            }
+        };
+    }
+
+    /**
      * Called when USB device list changes.
      * Executes the JavaScript callback with the updated device JSON.
      *
@@ -94,35 +121,37 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * Loads the appropriate page based on managed configuration.
+     * Uses ViewModel's getInitialUrl() which checks:
+     * 1. SharedPreferences (persisted from restrictions)
+     * 2. RestrictionsManager (live from EMM)
+     * 3. Default URL (file:///android_asset/index.html)
      */
     private void loadPage() {
-        String startPage = getManagedStartPage();
+        String startPage = usbViewModel.getInitialUrl();
+        binding.webView.loadUrl(startPage);
+    }
 
-        if (startPage != null && !startPage.isEmpty()) {
-            binding.webView.loadUrl(startPage);
-        } else {
-            // Load local fallback page
-            binding.webView.loadUrl("file:///android_asset/index.html");
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Register BroadcastReceiver for restriction changes
+        if (restrictionsChangedReceiver != null) {
+            IntentFilter filter = new IntentFilter(Intent.ACTION_APPLICATION_RESTRICTIONS_CHANGED);
+            registerReceiver(restrictionsChangedReceiver, filter);
         }
     }
 
-    /**
-     * Gets the managed start page URL from device owner restrictions.
-     *
-     * @return The start page URL, or null if not configured
-     */
-    private String getManagedStartPage() {
-        RestrictionsManager restrictionsManager = (RestrictionsManager) getSystemService(Context.RESTRICTIONS_SERVICE);
-        if (restrictionsManager == null) {
-            return null;
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Unregister BroadcastReceiver to avoid leaks
+        if (restrictionsChangedReceiver != null) {
+            try {
+                unregisterReceiver(restrictionsChangedReceiver);
+            } catch (IllegalArgumentException e) {
+                // Receiver was not registered, ignore
+            }
         }
-
-        Bundle restrictions = restrictionsManager.getApplicationRestrictions();
-        if (restrictions == null) {
-            return null;
-        }
-
-        return restrictions.getString("start_page");
     }
 
     @Override

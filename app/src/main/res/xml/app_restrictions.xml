@@ -4,6 +4,5 @@
         android:key="start_page"
         android:restrictionType="string"
         android:title="@string/restriction_start_page_title"
-        android:description="@string/restriction_start_page_description"
-        android:defaultValue="" />
+        android:description="@string/restriction_start_page_description" />
 </restrictions>
