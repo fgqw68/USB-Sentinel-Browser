@@ -3,7 +3,7 @@
     <restriction
         android:key="start_page"
         android:restrictionType="string"
-        android:title="Start Page URL"
-        android:description="The URL to load when the app starts. Leave empty to use the local fallback page."
+        android:title="@string/restriction_start_page_title"
+        android:description="@string/restriction_start_page_description"
         android:defaultValue="" />
 </restrictions>

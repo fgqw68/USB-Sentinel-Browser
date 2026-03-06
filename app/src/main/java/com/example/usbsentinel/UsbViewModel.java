@@ -29,13 +29,13 @@ public class UsbViewModel extends AndroidViewModel {
     private String javascriptCallback;
     private WebView webView;
     private UsbBridge usbBridge;
-    private UsbReceiver usbReceiver;
 
     public UsbViewModel(@NonNull Application application) {
         super(application);
         usbManager = (UsbManager) application.getSystemService(Context.USB_SERVICE);
         usbDevices = new MutableLiveData<>();
-        usbReceiver = new UsbReceiver(this);
+        // Set the static reference for the BroadcastReceiver
+        UsbReceiver.setUsbViewModel(this);
     }
 
     public LiveData<List<Map<String, Object>>> getUsbDevices() {
@@ -68,19 +68,11 @@ public class UsbViewModel extends AndroidViewModel {
     }
 
     public void startMonitoring(Context context) {
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED);
-        filter.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
-        context.registerReceiver(usbReceiver, filter);
         updateDeviceList();
     }
 
     public void stopMonitoring(Context context) {
-        try {
-            context.unregisterReceiver(usbReceiver);
-        } catch (IllegalArgumentException e) {
-            // Receiver not registered
-        }
+        // No need to unregister since the receiver is in the manifest
     }
 
     public void onUsbDeviceChanged() {
@@ -116,8 +108,10 @@ public class UsbViewModel extends AndroidViewModel {
     @Override
     protected void onCleared() {
         super.onCleared();
+        // Clear the static reference
+        UsbReceiver.setUsbViewModel(null);
         if (usbBridge != null && webView != null) {
-            webView.removeJavascriptInterface(usbBridge);
+            webView.removeJavascriptInterface("UsbBridge");
         }
     }
 }

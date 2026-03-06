@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">USB Sentinel Browser</string>
+    <string name="restriction_start_page_title">Start Page URL</string>
+    <string name="restriction_start_page_description">The URL to load when the app starts. Leave empty to use the local fallback page.</string>
 </resources>

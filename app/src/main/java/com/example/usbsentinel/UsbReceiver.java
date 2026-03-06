@@ -7,13 +7,20 @@ import android.hardware.usb.UsbManager;
 
 /**
  * UsbReceiver handles USB device attach/detach broadcasts.
+ * Registered in AndroidManifest.xml to receive system broadcasts.
  */
 public class UsbReceiver extends BroadcastReceiver {
 
-    private UsbViewModel usbViewModel;
+    private static UsbViewModel usbViewModel;
 
-    public UsbReceiver(UsbViewModel usbViewModel) {
-        this.usbViewModel = usbViewModel;
+    /**
+     * Sets the ViewModel reference for the receiver to notify.
+     * This must be called before any USB events are expected.
+     *
+     * @param viewModel The ViewModel to notify on USB events
+     */
+    public static void setUsbViewModel(UsbViewModel viewModel) {
+        usbViewModel = viewModel;
     }
 
     @Override
