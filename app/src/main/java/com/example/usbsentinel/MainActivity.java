@@ -3,70 +3,115 @@ package com.example.usbsentinel;
 import android.content.Context;
 import android.content.RestrictionsManager;
 import android.os.Bundle;
-import android.os.PersistableBundle;
 import android.webkit.WebSettings;
-import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.lifecycle.ViewModelProvider;
 
-import java.util.Map;
+import com.example.usbsentinel.databinding.ActivityMainBinding;
 
 /**
  * MainActivity sets up the WebView and handles USB Sentinel functionality.
- * It loads either a configured start page from managed configurations or the local fallback page.
+ * It follows strict MVVM pattern by observing LiveData from ViewModel.
+ * The ViewModel has no reference to Views, preventing memory leaks.
  */
 public class MainActivity extends AppCompatActivity {
 
-    private WebView webView;
+    private ActivityMainBinding binding;
     private UsbViewModel usbViewModel;
+    private UsbBridge usbBridge;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        binding = ActivityMainBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
 
-        webView = findViewById(R.id.webView);
         setupWebView();
-
-        usbViewModel = new ViewModelProvider(this).get(UsbViewModel.class);
-        usbViewModel.setWebView(webView);
-
-        // Load the appropriate page
+        setupUsbBridge();
+        setupViewModel();
         loadPage();
-
-        // Start monitoring USB devices
-        usbViewModel.startMonitoring(this);
     }
 
+    /**
+     * Configures the WebView settings and client.
+     */
     private void setupWebView() {
-        WebSettings webSettings = webView.getSettings();
+        WebSettings webSettings = binding.webView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
         webSettings.setAllowFileAccess(true);
         webSettings.setAllowContentAccess(true);
 
-        webView.setWebViewClient(new WebViewClient() {
+        binding.webView.setWebViewClient(new WebViewClient() {
             @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+            public boolean shouldOverrideUrlLoading(android.webkit.WebView view, String url) {
                 view.loadUrl(url);
                 return false;
             }
         });
     }
 
+    /**
+     * Sets up the JavaScript bridge between WebView and native code.
+     */
+    private void setupUsbBridge() {
+        usbBridge = new UsbBridge();
+        binding.webView.addJavascriptInterface(usbBridge, "UsbBridge");
+    }
+
+    /**
+     * Sets up the ViewModel and observes USB device JSON LiveData.
+     */
+    private void setupViewModel() {
+        usbViewModel = new ViewModelProvider(this).get(UsbViewModel.class);
+
+        // Observe USB device JSON changes
+        usbViewModel.getUsbDeviceJson().observe(this, this::onUsbDevicesChanged);
+
+        // Start monitoring USB devices
+        usbViewModel.startMonitoring(this);
+    }
+
+    /**
+     * Called when USB device list changes.
+     * Executes the JavaScript callback with the updated device JSON.
+     *
+     * @param deviceJson JSON string of connected USB devices
+     */
+    private void onUsbDevicesChanged(String deviceJson) {
+        if (usbBridge == null) {
+            return;
+        }
+
+        String callback = usbBridge.getJavascriptCallback();
+        if (callback != null && !callback.isEmpty()) {
+            // Execute JavaScript callback with device JSON
+            String js = "(" + callback + ")('" + deviceJson.replace("'", "\\'") + "')";
+            binding.webView.post(() -> binding.webView.evaluateJavascript(js, null));
+        }
+    }
+
+    /**
+     * Loads the appropriate page based on managed configuration.
+     */
     private void loadPage() {
         String startPage = getManagedStartPage();
 
         if (startPage != null && !startPage.isEmpty()) {
-            webView.loadUrl(startPage);
+            binding.webView.loadUrl(startPage);
         } else {
             // Load local fallback page
-            webView.loadUrl("file:///android_asset/index.html");
+            binding.webView.loadUrl("file:///android_asset/index.html");
         }
     }
 
+    /**
+     * Gets the managed start page URL from device owner restrictions.
+     *
+     * @return The start page URL, or null if not configured
+     */
     private String getManagedStartPage() {
         RestrictionsManager restrictionsManager = (RestrictionsManager) getSystemService(Context.RESTRICTIONS_SERVICE);
         if (restrictionsManager == null) {
@@ -84,15 +129,23 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        // Stop monitoring and clean up
         if (usbViewModel != null) {
-            usbViewModel.stopMonitoring(this);
+            usbViewModel.stopMonitoring();
         }
+        // Clear the bridge callback to prevent memory leaks
+        if (usbBridge != null) {
+            usbBridge.clearCallback();
+            binding.webView.removeJavascriptInterface("UsbBridge");
+        }
+        // Clear binding reference
+        binding = null;
     }
 
     @Override
     public void onBackPressed() {
-        if (webView.canGoBack()) {
-            webView.goBack();
+        if (binding.webView.canGoBack()) {
+            binding.webView.goBack();
         } else {
             super.onBackPressed();
         }
